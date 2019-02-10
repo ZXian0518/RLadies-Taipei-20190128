@@ -1,0 +1,265 @@
+---
+title: "RLadies Taipei 20190128"
+author: "Zong-Xian Huang"
+date: "2019/2/10"
+output: html_document
+---
+<style type="text/css">
+
+body{ /* Normal  */
+   font-size: 20px;
+}
+td {  /* Table  */
+   font-size: 12px;
+}
+h1 { /* Header 1 */
+ font-size: 28px;
+ color: DarkBlue;
+}
+h2 { /* Header 2 */
+ font-size: 22px;
+ color: DarkBlue;
+}
+h3 { /* Header 3 */
+ font-size: 18px;
+ color: DarkBlue;
+}
+code.r{ /* Code block */
+  font-size: 16px;
+}
+pre { /* Code block */
+  font-size: 16px
+}
+</style>
+
+# 0. Data pre-processing
+- 將2013~2017年資料整理乾淨，並進行編碼整合後，存成`Rdata`檔供後續使用。
+- 由於重新編碼過程頗為繁複，且受到不同年度資料的「乾淨程度」有不同的處理，但這部分是「黑手」的工作，即使不使用R也可以完成，故過程就不呈現出來，主要原則就是一直透過`table()`檢視遺漏值，以及各年度編碼一致性，並利用`library(car)`中的`Recode()`進行重新編碼
+- 以下是編碼簿
+
+| Variables | Description | Value |
+| :-----: | :----------------------------------- | :-------------------------------------------|
+| ovalue | 請問，您對政府網站中提供給民眾的資訊滿不滿意? | 1=非常不滿意; 2=不滿意; 3=滿意; 4=非常滿意|
+| dvalue | 請問，您常不常透過網路社群將您覺得重要的公共問題傳給其他人? | 1=從來沒有; 2=很少; 3=有時; 4=經常|
+| svalue | 如果沒有網路，您的生活會變得比較快樂、還是比較不快樂? | 1=比以前不快樂很多; 2=比以前不快樂一些; 3=比以前快樂一些; 4=比以前快樂很多|
+| inter | 網路使用 | 1=有;0=無 |
+| gender | 性別 | 1=男性; 2=女性|
+| edu | 教育程度 | 1=小學及以下; 2=國初中; 3=高中職; 4=大專及以上|
+| age | 年齡 | 1=15-19歲; 2=20-29歲; 3=30-39歲; 4=40-49歲; 5=50-59歲; 6=60歲以上|
+| w | 權值 | NULL |
+
+
+```{r}
+library(foreign)
+library(survey)
+library(ggplot2)
+library(ggstatsplot)
+library(magrittr)
+library(car)
+library(tidyr)
+library(tibble)
+library(dplyr)
+library(knitr)
+```
+
+# 1. 2013~2017 Public Value of Digital Governance (數位治理公共價值指標)
+
+
+```{r}
+rm(list=ls())
+options(digits = 3)
+load("/Users/huangzongxian/Desktop/RLadies/Data/datlis.RData") # 讀取整理好的Rdata檔
+
+#你也可以將 list 拆分成5個data.frame來執行喔，只是會稍微麻煩一點
+#for (i in 1:5L){
+#assign(paste0("data", i),datlis[[i]])}#
+
+
+#Using weight
+dwlist<- lapply(datlis,function(x){
+  svydesign(ids = ~1, data = x, weights = x$w)
+})
+
+
+
+#2013~2017 操作性價值
+#各年度結果
+lapply(dwlist,function(x){svytable(~ovalue, design=x) %>%
+  prop.table()})  %>%
+  do.call(rbind,.) %>% 
+  cbind(seq(2013,2017),.)    %>%
+  set_colnames(c("year",names(svytable(~ovalue, design=dwlist[[1]]))))
+
+
+#透過tibble與ggplot2的合作來plot
+lapply(dwlist,function(x){svytable(~ovalue, design=x) %>%
+  prop.table()})  %>%
+  do.call(rbind,.) %>% 
+  cbind(seq(2013,2017),.)    %>%
+  set_colnames(c("year",names(svytable(~ovalue, design=dwlist[[1]]))))    %>% 
+  as_tibble() %>% 
+  gather(terms, # this will be the new column for the  key columns
+         value, # this will contain the  values
+         c("非常不滿意","不滿意","滿意","非常滿意"), 
+         na.rm = TRUE 
+  ) %>%
+  ggplot(data=.,aes(x=year,y=value,group=factor(terms),col=terms,linetype=terms))+
+         geom_line() + 
+         geom_point() +  
+  labs(x = "時間", y = "percent", title = "請問，您對政府網站中提供給民眾的資訊滿不滿意?") + 
+  theme(text=element_text(family="黑體-繁 中黑", size=13),axis.ticks = element_blank())
+
+
+#2013~2017 政治性價值
+#
+lapply(dwlist,function(x){svytable(~dvalue, design=x) %>%
+  prop.table()})  %>%
+  do.call(rbind,.) %>% 
+  cbind(seq(2013,2017),.)    %>%
+  set_colnames(c("year",names(svytable(~dvalue, design=dwlist[[1]]))))
+
+
+#
+lapply(dwlist,function(x){svytable(~dvalue, design=x) %>%
+  prop.table()})  %>%
+  do.call(rbind,.) %>% 
+  cbind(seq(2013,2017),.)    %>%
+  set_colnames(c("year",names(svytable(~dvalue, design=dwlist[[1]]))))    %>% 
+  as_tibble() %>% 
+  gather(terms, # this will be the new column for the  key columns
+         value, # this will contain the  values
+         c("從來沒有","很少","有時","經常"), # this is the range of columns we want gathered
+         na.rm = TRUE # handles missing
+  ) %>%
+  ggplot(data=.,aes(x=year,y=value,group=factor(terms),col=terms,linetype=terms))+
+  geom_line() + geom_point() +  
+  labs(x = "時間", y = "percent", 
+       title = "請問，您常不常透過網路社群將您覺得重要的公共問題傳給其他人?") + 
+  theme(text=element_text(family="黑體-繁 中黑", size=13),axis.ticks = element_blank())
+
+
+#2013~2017 社會性價值
+#
+lapply(dwlist,function(x){svytable(~svalue, design=x) %>%
+  prop.table()})  %>%
+  do.call(rbind,.) %>% 
+  cbind(seq(2013,2017),.)    %>%
+  set_colnames(c("year",names(svytable(~svalue, design=dwlist[[1]])))) 
+
+#
+lapply(dwlist,function(x){svytable(~svalue, design=x) %>%
+  prop.table()})  %>%
+  do.call(rbind,.) %>% 
+  cbind(seq(2013,2017),.)    %>%
+  set_colnames(c("year",names(svytable(~svalue, design=dwlist[[1]]))))    %>% 
+  as_tibble() %>% 
+  gather(terms, # this will be the new column for the  key columns
+         value, # this will contain the  values
+         c("比以前不快樂很多","比以前不快樂一些","比以前快樂很多","比以前快樂一些"), # this is the range of columns we want gathered
+         na.rm = TRUE # handles missing
+  ) %>%
+  ggplot(data=.,aes(x=year,y=value,group=factor(terms),col=terms,linetype=terms))+
+  geom_line() + geom_point() +  
+  labs(x = "時間", y = "percent", 
+       title = "如果沒有網路，您的生活會變得比較快樂、還是比較不快樂?") + 
+  theme(text=element_text(family="黑體-繁 中黑", size=13),axis.ticks = element_blank())
+
+```
+
+# 2. Digital Divide
+- 女性在網路使用上有沒有比較不利呢？
+
+```{r}
+# 沒有任何一年的p-value < 0.05，無法推翻不同性別使用網路者比率相同的虛無假設
+lapply(dwlist,function(x){svychisq(~gender+inter, design=x, statistic="Chisq")})
+
+# 各年度比例
+lapply(dwlist,function(x){prop.table(svytable(~gender+inter, design=x),margin = 1)})
+
+```
+
+# 3. Weight vs. Unweight
+- 說明：加權的權值即是參考該年度內政部人口統計資料計算而出，換言之加權資料的人口分佈即反應當時的內政部人口統計資料。
+
+```{r}
+#Age
+data <- c()
+for (i in 1L:5L){
+  term <- names(prop.table(table(datlis[[1]]$age))*100)
+  date <- rep((i+2012),6)
+  start<- lapply(datlis,function(x){prop.table(table(x$age))*100})[[i]] %>% as.character() %>% as.numeric()
+  end<- lapply(dwlist,function(x){prop.table(svytable(~age,design=x))*100}) [[i]] %>%    as.character() %>% as.numeric()
+  amount <- end-start %>% as.character() %>% as.numeric()
+  type <- ifelse(amount > 0, "Postive","Negative")
+  dt <- cbind(term,date,start,end,type,amount)
+  data <- rbind(data,dt)
+}
+
+data<- as.data.frame(data)
+data$date<- data$date %>% as.character() %>% as.numeric() 
+data$amount<- data$amount %>% as.character() %>% as.numeric() 
+
+#plot
+data %>%
+  ggplot(aes(x = date
+           , y = amount
+           , fill = term)) +
+  geom_col(position = "dodge") +
+  scale_fill_brewer(palette = "Dark2") + 
+  labs(x = "時間", y = "差比(%)", title = "populations - survey results (AGE)") +
+  theme(text=element_text(family="黑體-繁 中黑", size=13),axis.ticks = element_blank())
+  
+
+
+
+#Education
+data <- c()
+for (i in 1L:5L){
+  term <- names(prop.table(table(datlis[[1]]$edu))*100)
+  date <- rep((i+2012),4)
+  start<- lapply(datlis,function(x){prop.table(table(x$edu))*100})[[i]] %>% as.character() %>% as.numeric()
+  end<- lapply(dwlist,function(x){prop.table(svytable(~edu,design=x))*100}) [[i]] %>%    as.character() %>% as.numeric()
+  amount <- end-start %>% as.character() %>% as.numeric()
+  type <- ifelse(amount > 0, "Postive","Negative")
+  dt <- cbind(term,date,start,end,type,amount)
+  data <- rbind(data,dt)
+}
+
+data<- as.data.frame(data)
+data$date<- data$date %>% as.character() %>% as.numeric() 
+data$amount<- data$amount %>% as.character() %>% as.numeric() 
+
+#plot
+data %>%
+  ggplot(aes(x = date
+           , y = amount
+           , fill = term)) +
+  geom_col(position = "dodge") +
+  scale_fill_brewer(palette = "Dark2") + 
+  labs(x = "時間", y = "差比(%)", title = "populations - survey results (Education)") +
+  theme(text=element_text(family="黑體-繁 中黑", size=13),axis.ticks = element_blank())
+
+#這張圖的結果非常有趣，因為2016年的調查公司恰好因為招標的原因跟其他四年都不一樣(剛好因為我是助理所以才知道，不然報告書上沒有寫XD)，看來機構效應可能一定程度造成教育程度代表性的差異...!?
+
+```
+
+# 4. 當天沒有處理到的一個提問
+- 年齡越低的人會不會越常透過網路上分享訊息？
+- (偷懶用2017年資料做個迴歸模型看看)
+- 因為嚴格來說依變項是順序尺度(ordinal scale)，所以盡量不要直接用最小平方法的迴歸`lm()`，用`ordinal`套件中的`clm`會比較合理
+- 喜愛`ggplot2`的大神們同時創造了可以變出漂亮統計圖表的`ggstatsplot` 詳參 https://github.com/IndrajeetPatil/ggstatsplot
+- 年齡越大對於網路上的意見分享有負向影響(也就是年輕人比老年人更會透過網路分享公共資料)；教育程度越高、女性，則對於網路上的意見分享則有正向影響
+
+```{r}
+data<- datlis[[5]] # 2017 data
+data$edu<- Recode(data$edu,"'小學及以下'=1;'國初中'=2;'高中職'=3;'大專及以上'=4") %>% as.numeric()
+data$age<- Recode(data$age,"'15-19歲'=1;'20-29歲'=2;'30-39歲'=3;'40-49歲'=4;'50-59歲'=5;'60歲以上'=6") %>% as.numeric()
+data$dvalue<- Recode(data$dvalue,"'從來沒有'=1;'很少'=2;'有時'=3;'經常'=4")
+
+library(MASS)
+library(ordinal)
+clm1<- clm(dvalue~edu+age+gender,data=data)
+ggstatsplot::ggcoefstats(clm1,caption.summary=F,title = "Ordinal Regression Model")
+
+
+```
